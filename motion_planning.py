@@ -24,13 +24,14 @@ class States(Enum):
 
 class MotionPlanning(Drone):
 
-    def __init__(self, connection):
+    def __init__(self, connection, goal):
         super().__init__(connection)
 
         self.target_position = np.array([0.0, 0.0, 0.0])
         self.waypoints = []
         self.in_mission = True
         self.check_state = {}
+        self.goal = goal
 
         # initial state
         self.flight_state = States.MANUAL
@@ -146,9 +147,8 @@ class MotionPlanning(Drone):
 
         # Set goal as some arbitrary position on the grid
         # TODO: adapt to set goal as latitude / longitude position and convert
-        goal = (-122.396846, 37.797240, 0)  # TODO: retrive from args?
         # goal_lon, goal_lat, goal_alt = goal
-        goal_pos = global_to_local(goal, self.global_home)
+        goal_pos = global_to_local(self.goal, self.global_home)
         grid_goal = (int(-north_offset + goal_pos[0]), int(-east_offset + goal_pos[1]))
         # grid_goal = (grid_start[0] + 10, grid_start[1] + 10)
 
@@ -156,17 +156,24 @@ class MotionPlanning(Drone):
         # TODO: add diagonal motions with a cost of sqrt(2) to your A* implementation
         # or move to a different search space such as a graph (not done here)
         print('Local Start and Goal: ', grid_start, grid_goal)
+
+        start = time.time()
         path, _ = a_star(grid, heuristic, grid_start, grid_goal)
+        end = time.time()
+        print("a_star took", end - start)
         # TODO: prune path to minimize number of waypoints
 
         # attempt 1. collinearity
 
         # attempt 2. bresenham
         # starting with wherever we are now
+        start = time.time()
         path = bresify_path(path, grid)
+        end = time.time()
+        print("bresify_path took", end - start)
 
         # TODO (if you're feeling ambitious): Try a different approach altogether!
-        print("path", path)
+        # print("path", path)
 
         # Convert path to waypoints
         waypoints = [[p[0] + north_offset, p[1] + east_offset, TARGET_ALTITUDE, 0] for p in path]
@@ -193,10 +200,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=5760, help='Port number')
     parser.add_argument('--host', type=str, default='127.0.0.1', help="host address, i.e. '127.0.0.1'")
+    parser.add_argument('--goal', type=str, default='-122.396846, 37.797240, 0', help="lon/lat/alt")
     args = parser.parse_args()
+    print("args", args)
 
     conn = MavlinkConnection('tcp:{0}:{1}'.format(args.host, args.port), timeout=60)
-    drone = MotionPlanning(conn)
+    goal = np.array(args.goal.replace(" ", "").split(",")).astype(float)
+    print("goal", goal)
+    # proces
+    # goal = (-122.396846, 37.797240, 0)  # TODO: retrive from args?
+    drone = MotionPlanning(conn, goal)
     time.sleep(1)
 
     drone.start()
