@@ -1,8 +1,9 @@
 import argparse
 import time
 import msgpack
-from enum import Enum, auto
+import sys
 
+from enum import Enum, auto
 import numpy as np
 
 from planning_utils import bresify_path, a_star, heuristic, create_grid
@@ -151,29 +152,33 @@ class MotionPlanning(Drone):
         goal_pos = global_to_local(self.goal, self.global_home)
         grid_goal = (int(-north_offset + goal_pos[0]), int(-east_offset + goal_pos[1]))
         # grid_goal = (grid_start[0] + 10, grid_start[1] + 10)
+        print('Local Start and Goal: ', grid_start, grid_goal)
 
         # Run A* to find a path from start to goal
         # TODO: add diagonal motions with a cost of sqrt(2) to your A* implementation
         # or move to a different search space such as a graph (not done here)
-        print('Local Start and Goal: ', grid_start, grid_goal)
 
         start = time.time()
-        path, _ = a_star(grid, heuristic, grid_start, grid_goal)
+        path, cost = a_star(grid, heuristic, grid_start, grid_goal)
+        orig_path_len = len(path)
         end = time.time()
-        print("a_star took", end - start)
-        # TODO: prune path to minimize number of waypoints
+        if (orig_path_len == 0):
+            sys.exit()
+        print("a_star took {0}s to find {1} points at a cost of {2}".format(end - start, len(path), cost))
 
+        # TODO: prune path to minimize number of waypoints
         # attempt 1. collinearity
+        # nevermind this is fairly pointless
 
         # attempt 2. bresenham
         # starting with wherever we are now
         start = time.time()
         path = bresify_path(path, grid)
         end = time.time()
-        print("bresify_path took", end - start)
+        print("bresify_path took {0}s to convert {1} elements to {2}".format(end - start, orig_path_len, len(path)))
 
         # TODO (if you're feeling ambitious): Try a different approach altogether!
-        # print("path", path)
+        # graphs, other stuff?
 
         # Convert path to waypoints
         waypoints = [[p[0] + north_offset, p[1] + east_offset, TARGET_ALTITUDE, 0] for p in path]

@@ -56,6 +56,10 @@ class Action(Enum):
     EAST = (0, 1, 1)
     NORTH = (-1, 0, 1)
     SOUTH = (1, 0, 1)
+    NW = (-1, -1, np.sqrt(2))
+    NE = (-1, 1, np.sqrt(2))
+    SW = (1, -1, np.sqrt(2))
+    SE = (1, 1, np.sqrt(2))
 
     @property
     def cost(self):
@@ -85,6 +89,16 @@ def valid_actions(grid, current_node):
         valid_actions.remove(Action.WEST)
     if y + 1 > m or grid[x, y + 1] == 1:
         valid_actions.remove(Action.EAST)
+
+    # new actions to go diaganolly
+    if x - 1 < 0 or y + 1 > m or grid[x - 1, y + 1] == 1:
+        valid_actions.remove(Action.NE)
+    if x + 1 > n or y + 1 > m or grid[x + 1, y + 1] == 1:
+        valid_actions.remove(Action.SE)
+    if x - 1 < 0 or y - 1 < 0 or grid[x - 1, y - 1] == 1:
+        valid_actions.remove(Action.NW)
+    if x + 1 > n or y - 1 < 0 or grid[x + 1, y - 1] == 1:
+        valid_actions.remove(Action.SW)
 
     return valid_actions
 
@@ -175,5 +189,4 @@ def bresify_path(path, grid):
     # include the destination
     kept.append(path[-1])
 
-    print("started with {0} elements, ended with {1}".format(len(path), len(kept)))
     return kept
