@@ -44,13 +44,13 @@ class MotionPlanning(Drone):
 
     # modified to respect vertical waypoints (though only for going up)
     def local_position_callback(self):
-        DEADPAN = 3.0
+        DEADZONE = 3.0
         is_near_altitude = -1.0 * self.local_position[2] > 0.95 * self.target_position[2]
         if self.flight_state == States.TAKEOFF:
             if is_near_altitude:
                 self.waypoint_transition()
         elif self.flight_state == States.WAYPOINT:
-            is_near_destination = np.linalg.norm(self.target_position[0:2] - self.local_position[0:2]) < DEADPAN
+            is_near_destination = np.linalg.norm(self.target_position[0:2] - self.local_position[0:2]) < DEADZONE
             if is_near_destination and is_near_altitude:
                 if len(self.waypoints) > 0:
                     self.waypoint_transition()
