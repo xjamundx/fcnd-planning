@@ -2,6 +2,7 @@ from enum import Enum
 from queue import PriorityQueue
 import numpy as np
 from bresenham import bresenham
+from sklearn.neighbors import KDTree
 
 
 def create_grid(data, drone_altitude, safety_distance):
@@ -41,8 +42,9 @@ def create_grid(data, drone_altitude, safety_distance):
 
     return grid, int(north_min), int(east_min)
 
-
 # Assume all actions cost the same.
+
+
 class Action(Enum):
     """
     An action is represented by a 3 element tuple.
@@ -158,16 +160,11 @@ def heuristic(position, goal_position):
     return np.linalg.norm(np.array(position) - np.array(goal_position))
 
 
-def collides(p, grid):
-    # print("checking collision at grid[p]", p, grid[p[1]][p[0]], grid.shape)
-    return grid[p] == 1
-
-
 def safe_bres(p1, p2, grid):
     sub_path = list(bresenham(p1[0], p1[1], p2[0], p2[1]))
     # print("bresenham between {0} and {1} for {2} points".format(p1, p2, len(sub_path)))
     for p in sub_path:
-        if (collides(p, grid)):
+        if (grid[p] == 1):
             # print("collision at", p)
             return False
     return True
@@ -190,3 +187,30 @@ def bresify_path(path, grid):
     kept.append(path[-1])
 
     return kept
+
+
+def find_closest_safe(point, altitude, safe_points, tree):
+    point_2d = (point[0], point[1])
+    # query with kdtree for fast lookup of closest item
+    idx = tree.query([point_2d], k=1, return_distance=False)[0]
+    safe_point = safe_points[idx[0]]
+    print("Found {0} which was {1}".format(idx, safe_point))
+    return (int(safe_point[0]), int(safe_point[1]))
+
+
+def plan_takeoff_and_landing(start_point, end_point, altitude, grid):
+    safe_points = np.transpose(np.nonzero(grid == 0))
+    tree = KDTree(safe_points)
+
+    close_to_start = find_closest_safe(start_point, altitude, safe_points, tree)
+    close_to_end = find_closest_safe(end_point, altitude, safe_points, tree)
+    close_to_start_2d = (close_to_start[0], close_to_start[1])
+    # print("close to start", start_point, close_to_start, grid[close_to_start_2d])
+    close_to_end_2d = (close_to_end[0], close_to_end[1])
+    # print("close to end", end_point, close_to_end, grid[close_to_end_2d])
+    starting_points = [(start_point[0], start_point[1], start_point[2] + altitude, 0),
+                       (close_to_start[0], close_to_start[1], start_point[2] + altitude)]
+    ending_points = [(close_to_end[0], close_to_end[1], end_point[2] + altitude),
+                     (end_point[0], end_point[1], end_point[2] + altitude),
+                     (end_point[0], end_point[1], end_point[2])]
+    return starting_points, ending_points, close_to_start_2d, close_to_end_2d

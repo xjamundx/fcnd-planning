@@ -6,7 +6,7 @@ import sys
 from enum import Enum, auto
 import numpy as np
 
-from planning_utils import bresify_path, a_star, heuristic, create_grid
+from planning_utils import plan_takeoff_and_landing, bresify_path, a_star, heuristic, create_grid
 from udacidrone import Drone
 from udacidrone.connection import MavlinkConnection
 from udacidrone.messaging import MsgID
@@ -42,22 +42,27 @@ class MotionPlanning(Drone):
         self.register_callback(MsgID.LOCAL_VELOCITY, self.velocity_callback)
         self.register_callback(MsgID.STATE, self.state_callback)
 
+    # modified to respect vertical waypoints (though only for going up)
     def local_position_callback(self):
+        DEADPAN = 3.0
+        is_near_altitude = -1.0 * self.local_position[2] > 0.95 * self.target_position[2]
         if self.flight_state == States.TAKEOFF:
-            if -1.0 * self.local_position[2] > 0.95 * self.target_position[2]:
+            if is_near_altitude:
                 self.waypoint_transition()
         elif self.flight_state == States.WAYPOINT:
-            if np.linalg.norm(self.target_position[0:2] - self.local_position[0:2]) < 1.0:
+            is_near_destination = np.linalg.norm(self.target_position[0:2] - self.local_position[0:2]) < DEADPAN
+            if is_near_destination and is_near_altitude:
                 if len(self.waypoints) > 0:
                     self.waypoint_transition()
                 else:
                     if np.linalg.norm(self.local_velocity[0:2]) < 1.0:
                         self.landing_transition()
 
+    # added support for disarming at altitude if close to target
     def velocity_callback(self):
         if self.flight_state == States.LANDING:
-            if self.global_position[2] - self.global_home[2] < 0.1:
-                if abs(self.local_position[2]) < 0.01:
+            if self.global_position[2] - self.target_position[2] < 0.1:
+                if abs(self.local_position[2]) < 0.01 + self.target_position[2]:
                     self.disarming_transition()
 
     def state_callback(self):
@@ -111,6 +116,7 @@ class MotionPlanning(Drone):
 
     def send_waypoints(self):
         print("Sending waypoints to simulator ...")
+        # print("waypoints", self.waypoints)
         data = msgpack.dumps(self.waypoints)
         self.connection._master.write(data)
 
@@ -120,7 +126,9 @@ class MotionPlanning(Drone):
         TARGET_ALTITUDE = 5
         SAFETY_DISTANCE = 5
 
-        self.target_position[2] = TARGET_ALTITUDE
+        # instead of starting at flying altitude, start above wherever we are...
+        # self.target_position[2] = TARGET_ALTITUDE
+        self.target_position[2] = self._altitude + TARGET_ALTITUDE
 
         # TODO: read lat0, lon0 from colliders into floating point values
         with open('colliders.csv') as f:
@@ -154,12 +162,23 @@ class MotionPlanning(Drone):
         # grid_goal = (grid_start[0] + 10, grid_start[1] + 10)
         print('Local Start and Goal: ', grid_start, grid_goal)
 
+        # adding support for take-off and landing at altitude
+        start_point = (grid_start[0], grid_start[1], self._altitude)
+        end_point = (grid_goal[0], grid_goal[1], self.goal[2])
+        # print("3d points", start_point, end_point)
+        starting_points, ending_points, close_to_start, close_to_end = plan_takeoff_and_landing(
+            start_point, end_point, TARGET_ALTITUDE, grid)
+        # print("safe_points", close_to_start, close_to_end)
+        # print("starting_ending_points", starting_points, ending_points)
+
         # Run A* to find a path from start to goal
         # TODO: add diagonal motions with a cost of sqrt(2) to your A* implementation
         # or move to a different search space such as a graph (not done here)
 
         start = time.time()
-        path, cost = a_star(grid, heuristic, grid_start, grid_goal)
+        # print(grid_start, close_to_start, type(grid_start), type(close_to_start))
+        # print(grid_goal, close_to_end, type(grid_goal), type(close_to_end))
+        path, cost = a_star(grid, heuristic, close_to_start, close_to_end)
         orig_path_len = len(path)
         end = time.time()
         if (orig_path_len == 0):
@@ -181,10 +200,14 @@ class MotionPlanning(Drone):
         # graphs, other stuff?
 
         # Convert path to waypoints
+        starting_points = [[int(p[0] + north_offset), int(p[1] + east_offset), int(p[2]), 0] for p in starting_points]
+        ending_points = [[int(p[0] + north_offset), int(p[1] + east_offset), int(p[2]), 0] for p in ending_points]
         waypoints = [[p[0] + north_offset, p[1] + east_offset, TARGET_ALTITUDE, 0] for p in path]
 
         # Set self.waypoints
-        self.waypoints = waypoints
+        wayps = starting_points + waypoints + ending_points
+        self.waypoints = wayps
+
         # TODO: send waypoints to sim (this is just for visualization of waypoints)
         self.send_waypoints()
 
