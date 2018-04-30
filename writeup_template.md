@@ -67,14 +67,14 @@ Here is a list of possible states the drone can be in:
 
 The top of the `colliders.csv` file contains a line like this:
 
-```
+```c
 lat0 37.792480, lon0 -122.397450
 posX,posY,posZ,halfSizeX,halfSizeY,halfSizeZ
 ```
 
 We needed to extract that lat and lon and use it to set the home position for our drone, so that our position from that time forward would be correctly measured from this location. Here's how I accomplished it:
 
-```
+```py
 with open('colliders.csv') as f:
     _, lat0, _, lon0 = f.readline().replace(",", " ").replace("\n", "").split()
 self.set_home_position(float(lon0), float(lat0), 0)
@@ -86,7 +86,7 @@ The part that got me was longitude first. I kept trying latittude first and it m
 
 I didn't get this for a long time, but the `global_to_local` function basically converts latititude / longitude to grid coordinates.
 
-```
+```py
 local_pos = global_to_local(self.global_position, self.global_home)
 ```
 
@@ -94,7 +94,7 @@ local_pos = global_to_local(self.global_position, self.global_home)
 
 Calculating the local position comes in handy later when we need to determine where we are on the grid (for calculating A\*):
 
-```
+```py
 grid_start = (int(-north_offset + local_pos[0]), int(-east_offset + local_pos[1]))
 ```
 
@@ -108,13 +108,13 @@ I added a `--goal` argument to our script, so that I can try different destinati
 
 The default destination when we run `python motion_planning.py` is `"-122.396846, 37.797240, 0"` and is shown below:
 
-![default-goal](./misc/fcnd-goal.png)
+![default-goal in the park](./misc/fcnd-park.png)
 
 #### 5. Modify A* to include diagonal motion (or replace A* altogether)
 
 I used the prescribed solution of adding diaganols to the `Action` Enum in `planning_utils` as follows:
 
-```python
+```py
 NW = (-1, -1, np.sqrt(2))
 NE = (-1, 1, np.sqrt(2))
 SW = (1, -1, np.sqrt(2))
@@ -123,7 +123,7 @@ SE = (1, 1, np.sqrt(2))
 
 Where it got kind of weird though was in our `valid_actions` method we had to add a bunch of logic to check for collisions:
 
-```python
+```py
 if x - 1 < 0 or y + 1 > m or grid[x - 1, y + 1] == 1:
     valid_actions.remove(Action.NE)
 if x + 1 > n or y + 1 > m or grid[x + 1, y + 1] == 1:
@@ -197,6 +197,7 @@ The initial take-off altittude was initially being set to `TARGET_ALTITUDE` and 
 Even with all of those things in place there are still some limitations, such as this case, where we try to land in the middle of a building and it will either crash or drop down ;-)
 
 ![drop the drone](./misc/fcnd-drop.png)
+![ouch](./misc/fcnd-boom.png)
 
 But hey it will make it (though probably damaged)
 
