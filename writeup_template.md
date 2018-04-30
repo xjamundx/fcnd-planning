@@ -180,19 +180,21 @@ ending_points = [(close_to_end[0], close_to_end[1], end_point[2] + altitude),
 self.waypoints = starting_points + waypoints + ending_points
 ```
 
-## Challenge Details
+### Challenges Implementing Takeoff from Altitude
 
-While the concept I had was correct I ran into a few hurdles which I will outline in more detail.
+While the idea I had was correct I ran into a few hurdles which I will outline in more detail.
 
-Our A\* implementation is very obstacle averse. Even when the height of our goal is 3m and our traveling altitude is 5m, the safety distance will prevent us from creating a path to that destination.
+1.  Our A\* implementation is very obstacle averse. Even when the height of our goal is 3m and our traveling altitude is 5m, the safety distance will prevent us from creating a path to that destination.
 
-Also `local_position_callback` wasn't taking altitude into account when determing if you found a waypoint, which means that if you're trying to straight up from a waypoint it will think you're already there and crash into the building try to diagnaolly travel to the next waypoint.
+2.  Also `local_position_callback` wasn't taking altitude into account when determing if you found a waypoint, which means that if you're trying to straight up from a waypoint it will think you're already there and crash into the building try to diagnaolly travel to the next waypoint.
 
 ![crash the drone](./misc/fcnd-crash.png)
 
-Next up `velocity_callback` which triggers landing only wanted to initiate landing when you were below `0.1` meters altitude for both `local_position` and `global_position`. This meant that while I could get the drone to hover near a roof it would never stop.
+3.  Next up `velocity_callback` which triggers landing only wanted to initiate landing when you were below `0.1` meters altitude for both `local_position` and `global_position`. This meant that while I could get the drone to hover near a roof it would never stop.
 
-The initial take-off altittude was initially being set to `TARGET_ALTITUDE` and so we needed to modify that to take into account the local_altitude.
+4.  The initial take-off altittude was initially being set to `TARGET_ALTITUDE` and so we needed to modify that to take into account the local_altitude.
+
+### Bugs
 
 Even with all of those things in place there are still some limitations, such as this case, where we try to land in the middle of a building and it will either crash or drop down ;-)
 
